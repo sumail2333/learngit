@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="Generator" content="EditPlus®">
+	<meta name="Author" content="">
+	<meta name="Keywords" content="">
+	<meta name="Description" content="">
+	<title>Face_Detection</title>
+	<style type="text/css">
+		html,
+		body {
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: #f0f0f0
+		}
+
+		canvas,
+		video {
+			/* width: 320px; */
+			/* height: 240px; */
+			/* border: 2px solid green; */
+			align-self: center;
+		}
+
+		canvas {
+			margin-left: 20px;
+		}
+
+		video {
+			display: none;
+		}
+
+		.bottom {
+			display: flex;
+			justify-content: center;
+			margin-top: 20px;
+		}
+
+    /* 全屏状态设置图片宽度 */
+    #fullscreen:-webkit-full-screen cnavas{
+        width: 100%;
+    }
+
+    #fullscreen:-webkit-full-screen:-webkit-backdrop{
+        background: maroon;
+    }
+    #fullscreen:-ms-fullscreen:backdrop{
+        background: maroon;
+    }
+	</style>
+	<!-- <script type="text/javascript" src="./ccv.js"></script> -->
+	<script type="text/javascript" src="./js/jquery-3.2.1.min.js"></script>
+	<script type="text/javascript" src="./src/ccv.js"></script>
+	<script type="text/javascript" src="./src/cascade.js"></script>
+	<script type="text/javascript" src="./src/jquery.facedetection.js"></script>
+</head>
+
+<body>
+	<div id="" class="container">
+		<div class="content">
+			<video id="video" src="" controls="false">Video stream not available</video>
+			<canvas id="canvas">Video stream not available</canvas>
+		</div>
+		<div class="bottom">
+			<button id="btn">关闭摄像头</button>
+		</div>
+	</div>
+	<script type="text/javascript">
+		(function () {
+			'use strict';
+			let width = 640;
+			let height = 0;
+			let video = null;
+			// let canvas = document.createElement('video');
+			let canvas = null;
+			let container = null;
+			
+			let streaming = false;
+			let streamTrack = [];
+			let int = 0;
+			let btn = document.getElementById('btn');
+
+			let count = 0;
+			let arr = [];
+			let request = true;//是否可以网络请求;
+			let attr = {
+				gender: '',
+				glass: '',
+				left_eye: '',
+				right_eye: '',
+				emotion: ''
+			}
+			let DETECT_API = {
+				// url: 'https://api-cn.faceplusplus.com/facepp/v3/detect',
+				// url: 'https://www.faceplusplus.com.cn/api/official/demo/facepp/v3/detect',
+				"api_key": 'Qu0TPswwSUngp1b51OOzP7mQqCbPBPla',
+				api_secret: 'eLZaWcRBKnSPHX2szqqDrVDMMrBpJVSX',
+				image_base64: '',
+				return_landmark: 1,
+				// return_attributes: "1",
+			}
+			function setUp() {
+				video = document.getElementById('video');
+				canvas = document.getElementById('canvas');
+				container = document.getElementById('container');
+				// let getUserMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia);
+				navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+					.then(stream => {
+						video.srcObject = stream;
+						video.play();
+						streamTrack = stream.getVideoTracks();
+						console.log(stream.getVideoTracks());
+					}).catch(err => {
+						console.error(err);
+					});
+				video.addEventListener('canplay', () => {
+					if (!streaming) {
+						height = video.videoHeight / (video.videoWidth / width);
+						video.setAttribute('width', width);
+						video.setAttribute('height', height);
+						canvas.setAttribute('width', width);
+						canvas.setAttribute('height', height);
+						streaming = true;
+					}
+				}, false);
+				int = setInterval(draw,50);
+				
+				btn.addEventListener('click', stopCamera, false);
+			}
+			function stopCamera() {
+				clearInterval(int);
+				streamTrack[0].stop();
+				btn.innerHTML = '打开Camera';
+				btn.removeEventListener('click', stopCamera);
+				btn.addEventListener('click', startCamera, false);
+			}
+			function startCamera() {
+				btn.innerHTML = '关闭Camera'
+				btn.removeEventListener('click', startCamera);
+				// btn.addEventListener('click',stopCamera.false);												
+				setUp();
+			}
+			function draw() {
+				canvas.addEventListener("click", function(){
+            if(document.webkitIsFullScreen){
+                document.webkitExitFullscreen();
+            }else{
+                container.webkitRequestFullScreen();
+            }
+        })
+				count++;
+				let n = new Date().getTime();
+				console.log(count);
+				let ctx = canvas.getContext('2d');
+				if (width && height) {
+					canvas.width = width;
+					canvas.height = height;
+					ctx.drawImage(video, 0, 0, width, height);
+					//111111111111111111APIAPIAPIAPIAPI
+					// if (count >= 2) {
+					DETECT_API.image_base64 = canvas.toDataURL('image/png').slice(22);//去掉base64，字头;
+					// console.log(request);
+					// console.log(DETECT_API.image_base64.length);
+					if (request) {
+						request = false;
+						$.ajax({
+							type: "POST",
+							url: 'https://api-cn.faceplusplus.com/facepp/v3/detect',
+							data: {
+								"api_key": 'Qu0TPswwSUngp1b51OOzP7mQqCbPBPla',
+								api_secret: 'eLZaWcRBKnSPHX2szqqDrVDMMrBpJVSX',
+								image_base64: DETECT_API.image_base64,
+								return_attributes: "eyestatus,gender,emotion"
+							},
+							timeout: 60000,
+							success: function (da) {
+								console.log(da);
+								if (da && da.faces.length > 0) {
+									arr = da.faces;
+									attr.gender = arr[0].attributes['gender']['value'];
+									attr.glass = arr[0].attributes['glass']['value'];
+									// let em=arr[0].attributes[emotion];
+									attr.emotion = Object.entries(arr[0].attributes['emotion']).sort((a, b) => a[1] - b[1])[Object.values(arr[0].attributes['emotion']).length - 1][0]
+									attr.left_eye = Object.entries(arr[0].attributes['eyestatus']['left_eye_status']).sort((a, b) => a[1] - b[1])[Object.values(arr[0].attributes['eyestatus']['left_eye_status']).length - 1][0]
+									attr.right_eye = Object.entries(arr[0].attributes['eyestatus']['right_eye_status']).sort((a, b) => a[1] - b[1])[Object.values(arr[0].attributes['eyestatus']['right_eye_status']).length - 1][0]
+								} else {
+									arr = [];
+								}
+								console.log(attr);
+							},
+							error: (err) => {
+								// console.log(err)
+							},
+							complete: (XHR, TS) => {
+								// console.log(XHR)
+								request = true;
+							}
+						});
+					}
+					// count = 0;
+					// }
+					//222222222222222222222222JQUERY_DETECTTION					
+					// $('#video').faceDetection({
+					// 	interval: 1,
+					// 	complete: function (faces) {
+					// 		console.log(faces);
+					// 		// for (var i = 0; i < faces.length; i++) {
+					// 		//     $('<div>', {
+					// 		//         'class':'face',
+					// 		//         'css': {
+					// 		//             'position': 'absolute',
+					// 		//             'left':     faces[i].x + 'px',
+					// 		//             'top':      faces[i].y + 'px',
+					// 		//             'width':    faces[i].width  + 'px',
+					// 		//             'height':   faces[i].height + 'px'
+					// 		//         }
+					// 		//     })
+					// 		//     .insertAfter(this);
+					// 		// }
+					// 		if (faces && faces.length > 0) {
+					// 			faces.forEach((ele) => {
+					// 				console.log(ele);
+					// 				ctx.lineWidth = 3;
+					// 				ctx.strokeStyle = '#7CD8F1';
+					// 				ctx.strokeRect(ele.x, ele.y, ele.width, ele.height);
+					// 			});
+					// 		}
+					// 	},
+					// 	error: function (code, message) {
+					// 		alert('Error: ' + message);
+					// 	}
+					// });
+					///////333333333333333333333333333ccv.js
+					// ccv.detect_objects({canvas : (ccv.pre(canvas)), cascade: cascade, interval: 2, min_neighbors: 1})	
+					//tracing.js
+
+					console.log(arr);
+					if (arr && arr.length > 0) {
+						arr.forEach((ele) => {
+							console.log(ele);
+							ctx.lineWidth = 3;
+							ctx.strokeStyle = '#7CD8F1';
+							ctx.strokeRect(ele.face_rectangle.left, ele.face_rectangle.top, ele.face_rectangle.width, ele.face_rectangle.height);
+						});
+						if (attr.left_eye == 'no_glass_eye_close' || attr.left_eye == 'normal_glass_eye_close') {
+							ctx.fillStyle = '#CBF901';
+							ctx.fillRect(0, 0, 15, canvas.height);
+						}
+						if (attr.right_eye == 'no_glass_eye_close' || attr.right_eye == 'normal_glass_eye_close') {
+							ctx.fillStyle = '#CBF901';
+							ctx.fillRect(canvas.width - 15, 0, 15, canvas.height);
+						}
+						ctx.font = "16px Courier New";
+						//设置字体填充颜色
+						ctx.fillStyle = "red";
+						//从坐标点(50,50)开始绘制文字
+						ctx.fillText("性别:" + attr.gender, 25, 30);
+						ctx.fillText("眼镜:" + attr.glass, 25, 55);
+						ctx.fillText("表情:" + attr.emotion, 25, 80);
+						ctx.fillText("左眼:" + attr.left_eye, 25, 105);
+						ctx.fillText("右眼:" + attr.right_eye, 25, 130);
+					}
+				} else {
+					clearPhoto();
+				}
+			}
+			function clearPhoto() {
+				let context = canvas.getContext('2d');
+				context.fillStyle = "#AAA";
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				let data = canvas.toDataURL('image/png');
+			}
+			window.addEventListener('load', setUp, false);
+			// ccv.detect_objects({canvas : (ccv.pre(canvas)), cascade: cascade, interval: 2, min_neighbors: 1});
+			//jquery	
+
+		})();
+	</script>
+</body>
+
+</html>
